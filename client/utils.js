@@ -72,3 +72,13 @@ export const  monstersData = [
     {name: 'Spider',            image: 'spider',            maxHealth: 4},
     {name: 'Stygian Lizard',    image: 'stygian_lizard',    maxHealth: 20}
 ];
+
+
+export const upgradeButtonsData = [
+    {icon: 'dagger', name: 'Attack', level: 1, cost: 5, purchaseHandler: function(button, player) {
+        player.clickDmg += 1;
+    }},
+    {icon: 'swordIcon1', name: 'Auto-Attack', level: 0, cost: 25, purchaseHandler: function(button, player) {
+        player.dps += 5;
+    }}
+]

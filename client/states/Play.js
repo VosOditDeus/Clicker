@@ -1,4 +1,4 @@
-import {monstersData} from "../utils"
+import {monstersData, upgradeButtonsData} from "../utils"
 
 
 //Me - to preserve context
@@ -41,9 +41,15 @@ export default class Play extends Phaser.State {
         // player
         this.player = {
             clickDmg: 1,
-            gold: 0
+            gold: 0,
+            dps: 0
         };
-
+        // world progression
+        this.level = 1;
+        // how many monsters have we killed during this level
+        this.levelKills = 0;
+        // how many monsters are required to advance a level
+        this.levelKillsRequired = 10;
 
         // setup each of our background to be full screen.
         let me = this;
@@ -108,8 +114,9 @@ export default class Play extends Phaser.State {
             fill: '#fff',
             strokeThickness: 4
         });
-
-
+        this.upgradePanel = this.game.add.image(10, 70, this.game.cache.getBitmapData('upgradePanel'));
+        let upgradeButtons = this.upgradePanel.addChild(this.game.add.group());
+        upgradeButtons.position.setTo(8, 8);
         this.monsterNameText.anchor.setTo(.5);
         this.monsterHealthText.anchor.setTo(.5);
         this.dmgTextPool = this.add.group();
@@ -120,7 +127,6 @@ export default class Play extends Phaser.State {
                 fill: '#fff',
                 strokeThickness: 4
             });
-            // start out not existing, so we don't draw it yet
             dmgText.exists = false;
             dmgText.tween = this.game.add.tween(dmgText)
                 .to({
@@ -133,9 +139,34 @@ export default class Play extends Phaser.State {
                 text.kill();
             });
             this.dmgTextPool.add(dmgText);
-
         }
+        // start out not existing, so we don't draw it yet
+        let button;
+        upgradeButtonsData.forEach(function(buttonData, index) {
+            button = me.game.add.button(0, (50 * index), me.game.cache.getBitmapData('button'));
+            button.icon = button.addChild(me.game.add.image(6, 6, buttonData.icon));
+            button.text = button.addChild(me.game.add.text(42, 6, buttonData.name + ': ' + buttonData.level, {font: '16px Arial Black'}));
+            button.details = buttonData;
+            button.costText = button.addChild(me.game.add.text(42, 24, 'Cost: ' + buttonData.cost, {font: '16px Arial Black'}));
+            button.events.onInputDown.add(me.onUpgradeButtonClick, me);
+
+            upgradeButtons.addChild(button);
+        });
+        this.dpsTimer = this.game.time.events.loop(100, this.onDPS, this);
+        this.levelUI = this.game.add.group();
+        this.levelUI.position.setTo(this.game.world.centerX, 30);
+        this.levelText = this.levelUI.addChild(this.game.add.text(0, 0, 'Level: ' + this.level, {
+            font: '24px Arial Black',
+            fill: '#fff',
+            strokeThickness: 4
+        }));
+        this.levelKillsText = this.levelUI.addChild(this.game.add.text(0, 30, 'Kills: ' + this.levelKills + '/' + this.levelKillsRequired, {
+            font: '24px Arial Black',
+            fill: '#fff',
+            strokeThickness: 4
+        }));
     }
+
 
     update() {
         // this.currentMonster.animations.add('stay');
@@ -162,16 +193,23 @@ export default class Play extends Phaser.State {
         // spawn a coin on the ground
         coin = this.coins.getFirstExists(false);
         coin.reset(this.game.world.centerX + this.game.rnd.integerInRange(-100, 100), this.game.world.centerY);
-        coin.goldValue = 1;
-        // move the monster off screen again
-        monster.position.set(9999, this.game.world.centerY);
+        coin.goldValue = Math.round(this.level * 1.33);
+        this.levelKills++;
+
+        if (this.levelKills >= this.levelKillsRequired) {
+            this.level++;
+            this.levelKills = 0;
+        }
 
         // pick a new monster
         this.currentMonster = this.monsters.getRandom();
+        // upgrade the monster based on level
+        this.currentMonster.maxHealth = Math.ceil(this.currentMonster.details.maxHealth + ((this.level - 1) * 10.6));
         // make sure they are fully healed
         this.currentMonster.revive(this.currentMonster.maxHealth);
         this.game.time.events.add(Phaser.Timer.SECOND * 3, this.onClickCoin, this, coin);
-
+        this.levelText.text = 'Level: ' + this.level;
+        this.levelKillsText.text = 'Kills: ' + this.levelKills + '/' + this.levelKillsRequired;
     }
 
     onRevivedMonster(monster) {
@@ -192,6 +230,33 @@ export default class Play extends Phaser.State {
         // remove the coin
         coin.kill();
     }
+
+
+    onUpgradeButtonClick(button) {
+        function getAdjustedCost() {
+            return Math.ceil(button.details.cost + (button.details.level * 1.46));
+        }
+
+        if (this.player.gold - getAdjustedCost() >= 0) {
+            this.player.gold -= getAdjustedCost();
+            this.playerGoldText.text = 'Gold: ' + this.player.gold;
+            button.details.level++;
+            button.text.text = button.details.name + ': ' + button.details.level;
+            button.costText.text = 'Cost: ' + getAdjustedCost();
+            button.details.purchaseHandler.call(this, button, this.player);
+        }
+    }
+    onDPS() {
+        if (this.player.dps > 0) {
+            if (this.currentMonster && this.currentMonster.alive) {
+                let dmg = this.player.dps / 10;
+                this.currentMonster.damage(dmg);
+                // update the health text
+                this.monsterHealthText.text = this.currentMonster.alive ? Math.round(this.currentMonster.health) + ' HP' : 'DEAD';
+            }
+        }
+    }
+
 
 }
 

@@ -1,0 +1,9 @@
+//Standart babel presets
+{
+  "presets": [
+    "stage-3",
+    "babel-preset-env",
+    "babel-preset-es2015"
+  ]
+}
+
